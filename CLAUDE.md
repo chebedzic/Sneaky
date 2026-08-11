@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-This is a Unity project (Editor version 6000.3.18f1 / Unity 6) using the Universal Render Pipeline (URP). It is currently a fresh project scaffold — no gameplay scripts exist yet beyond Unity's default template assets (`Assets/TutorialInfo/`).
+This is a Unity project (Editor version 6000.3.20f1 / Unity 6) using the Universal Render Pipeline (URP). It is currently a fresh project scaffold — no gameplay scripts exist yet beyond Unity's default template assets (`Assets/TutorialInfo/`).
 
 ## Key dependencies
 
@@ -51,3 +51,5 @@ When adding a new feature, ask which hexagon it belongs to (or whether it's a ne
 - Every asset has a paired `.meta` file (GUID tracking) — when adding or moving asset files, the corresponding `.meta` file must move/be created with it, or Unity will regenerate a new GUID and break references.
 - There is no command-line build/test setup in this repo; building, running, and testing is done through the Unity Editor (Unity Test Runner for tests, Build Settings for builds).
 - `Library/`, `Temp/`, `obj/`, and the generated `.csproj`/`.sln` files are Unity Editor-generated and should not be hand-edited.
+- After making changes, check that the project compiles (no errors in the Unity Console) and run any existing EditMode/PlayMode tests via the Unity Test Runner before considering the change done.
+- Commit in small, focused chunks rather than batching unrelated changes into one commit.
