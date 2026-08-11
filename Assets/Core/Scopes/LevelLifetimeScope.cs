@@ -1,3 +1,4 @@
+using Features.PlayerMovement.Adapters;
 using VContainer;
 using VContainer.Unity;
 
@@ -9,6 +10,7 @@ namespace Core.Scopes
 
         protected override void Configure(IContainerBuilder builder)
         {
+            PlayerMovementInstaller.Install(builder);
         }
     }
 }

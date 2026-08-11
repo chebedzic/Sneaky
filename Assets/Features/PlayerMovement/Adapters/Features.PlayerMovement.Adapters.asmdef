@@ -5,7 +5,6 @@
         "Features.PlayerMovement.Domain",
         "VContainer",
         "Unity.InputSystem",
-        "Core.Scopes",
         "Features.ClientConfig"
     ],
     "includePlatforms": [],

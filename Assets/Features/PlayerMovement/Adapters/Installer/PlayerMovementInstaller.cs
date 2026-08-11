@@ -1,16 +1,12 @@
-using Core.Scopes;
-using Features.PlayerMovement.Adapters;
 using Features.PlayerMovement.Domain;
 using VContainer;
 using VContainer.Unity;
 
-namespace Features.PlayerMovement.Installer
+namespace Features.PlayerMovement.Adapters
 {
-    public class PlayerLifetimeScope : LifetimeScope
+    public static class PlayerMovementInstaller
     {
-        protected override LifetimeScope FindParent() => Find<LevelLifetimeScope>();
-
-        protected override void Configure(IContainerBuilder builder)
+        public static void Install(IContainerBuilder builder)
         {
             builder.RegisterComponentInHierarchy<PlayerInputAdapter>().As<IMovementInputPort>();
             builder.RegisterComponentInHierarchy<CharacterControllerBodyAdapter>().As<IPlayerBodyPort>();

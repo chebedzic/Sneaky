@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "VContainer",
-        "Features.ClientConfig"
+        "Features.ClientConfig",
+        "Features.PlayerMovement.Adapters"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
