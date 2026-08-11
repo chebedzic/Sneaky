@@ -1,0 +1,17 @@
+{
+    "name": "Core.Scopes",
+    "rootNamespace": "",
+    "references": [
+        "VContainer",
+        "Features.ClientConfig"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
