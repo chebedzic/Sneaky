@@ -728,6 +728,7 @@ MonoBehaviour:
     TypeName: 
   autoRun: 1
   autoInjectGameObjects: []
+  moveSpeed: 5
 --- !u!114 &1100460540
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -740,7 +741,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c416b479f58e864ea94b3a9feeb176f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Features.PlayerMovement.Adapters.PlayerMovementPresenter
-  moveSpeed: 5
 --- !u!114 &1100460541
 MonoBehaviour:
   m_ObjectHideFlags: 0

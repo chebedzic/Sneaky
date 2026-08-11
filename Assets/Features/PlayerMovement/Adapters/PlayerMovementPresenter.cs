@@ -6,18 +6,16 @@ namespace Features.PlayerMovement.Adapters
 {
     public sealed class PlayerMovementPresenter : MonoBehaviour
     {
-        [SerializeField] private float moveSpeed = 5f;
-
         private IMovementInputPort _input;
         private IPlayerBodyPort _body;
         private PlayerMover _mover;
 
         [Inject]
-        public void Construct(IMovementInputPort input, IPlayerBodyPort body)
+        public void Construct(IMovementInputPort input, IPlayerBodyPort body, PlayerMover mover)
         {
             _input = input;
             _body = body;
-            _mover = new PlayerMover(moveSpeed);
+            _mover = mover;
         }
 
         private void Update()
