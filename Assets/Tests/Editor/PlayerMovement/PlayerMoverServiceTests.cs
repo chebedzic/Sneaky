@@ -4,12 +4,12 @@ using NUnit.Framework;
 
 namespace Features.PlayerMovement.Tests
 {
-    public class PlayerMoverTests
+    public class PlayerMoverServiceTests
     {
         [Test]
         public void ComputeVelocity_ZeroInput_ReturnsZero()
         {
-            var mover = new PlayerMover(moveSpeed: 5f);
+            var mover = new PlayerMoverService(moveSpeed: 5f);
 
             var velocity = mover.ComputeVelocity(Vector2.Zero);
 
@@ -19,7 +19,7 @@ namespace Features.PlayerMovement.Tests
         [Test]
         public void ComputeVelocity_AxisAlignedInput_ScalesByMoveSpeed()
         {
-            var mover = new PlayerMover(moveSpeed: 5f);
+            var mover = new PlayerMoverService(moveSpeed: 5f);
 
             var velocity = mover.ComputeVelocity(new Vector2(1f, 0f));
 
@@ -29,7 +29,7 @@ namespace Features.PlayerMovement.Tests
         [Test]
         public void ComputeVelocity_DiagonalInput_IsClampedToMoveSpeed()
         {
-            var mover = new PlayerMover(moveSpeed: 5f);
+            var mover = new PlayerMoverService(moveSpeed: 5f);
 
             var velocity = mover.ComputeVelocity(new Vector2(1f, 1f));
 
@@ -39,7 +39,7 @@ namespace Features.PlayerMovement.Tests
         [Test]
         public void ComputeVelocity_MapsInputYToWorldZ()
         {
-            var mover = new PlayerMover(moveSpeed: 5f);
+            var mover = new PlayerMoverService(moveSpeed: 5f);
 
             var velocity = mover.ComputeVelocity(new Vector2(0f, 1f));
 

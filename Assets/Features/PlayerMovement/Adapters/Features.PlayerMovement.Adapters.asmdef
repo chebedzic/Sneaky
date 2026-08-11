@@ -4,7 +4,9 @@
     "references": [
         "Features.PlayerMovement.Domain",
         "VContainer",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Core.Scopes",
+        "Features.ClientConfig"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

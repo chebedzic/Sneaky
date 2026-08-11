@@ -6,22 +6,22 @@ namespace Features.PlayerMovement.Adapters
 {
     public sealed class PlayerMovementPresenter : MonoBehaviour
     {
-        private IMovementInputPort _input;
-        private IPlayerBodyPort _body;
-        private PlayerMover _mover;
+        private IMovementInputPort input;
+        private IPlayerBodyPort body;
+        private PlayerMoverService mover;
 
         [Inject]
-        public void Construct(IMovementInputPort input, IPlayerBodyPort body, PlayerMover mover)
+        public void Construct(IMovementInputPort input, IPlayerBodyPort body, PlayerMoverService mover)
         {
-            _input = input;
-            _body = body;
-            _mover = mover;
+            this.input = input;
+            this.body = body;
+            this.mover = mover;
         }
 
         private void Update()
         {
-            var velocity = _mover.ComputeVelocity(_input.GetMoveInput());
-            _body.Move(velocity, Time.deltaTime);
+            var velocity = mover.ComputeVelocity(input.GetMoveInput());
+            body.Move(velocity, Time.deltaTime);
         }
     }
 }

@@ -1,18 +1,21 @@
+using Core.Scopes;
 using Features.PlayerMovement.Adapters;
 using Features.PlayerMovement.Domain;
-using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 
-public class PlayerLifetimeScope : LifetimeScope
+namespace Features.PlayerMovement.Installer
 {
-    [SerializeField] private float moveSpeed = 5f;
-
-    protected override void Configure(IContainerBuilder builder)
+    public class PlayerLifetimeScope : LifetimeScope
     {
-        builder.RegisterComponentInHierarchy<PlayerInputAdapter>().As<IMovementInputPort>();
-        builder.RegisterComponentInHierarchy<CharacterControllerBodyAdapter>().As<IPlayerBodyPort>();
-        builder.Register<PlayerMover>(Lifetime.Scoped).WithParameter("moveSpeed", moveSpeed);
-        builder.RegisterComponentInHierarchy<PlayerMovementPresenter>();
+        protected override LifetimeScope FindParent() => Find<LevelLifetimeScope>();
+
+        protected override void Configure(IContainerBuilder builder)
+        {
+            builder.RegisterComponentInHierarchy<PlayerInputAdapter>().As<IMovementInputPort>();
+            builder.RegisterComponentInHierarchy<CharacterControllerBodyAdapter>().As<IPlayerBodyPort>();
+            builder.Register<PlayerMoverService>(resolver => new PlayerMoverService(resolver.Resolve<Features.ClientConfig.ClientConfig>().PlayerMoveSpeed), Lifetime.Scoped);
+            builder.RegisterComponentInHierarchy<PlayerMovementPresenter>();
+        }
     }
 }

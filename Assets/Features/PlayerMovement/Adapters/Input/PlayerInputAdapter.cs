@@ -1,7 +1,6 @@
 using Features.PlayerMovement.Domain;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Vector2 = System.Numerics.Vector2;
 
 namespace Features.PlayerMovement.Adapters
 {
@@ -11,21 +10,21 @@ namespace Features.PlayerMovement.Adapters
         [SerializeField] private string actionMapName = "Player";
         [SerializeField] private string moveActionName = "Move";
 
-        private InputAction _moveAction;
+        private InputAction moveAction;
 
         private void Awake()
         {
-            _moveAction = inputActions.FindActionMap(actionMapName).FindAction(moveActionName);
+            moveAction = inputActions.FindActionMap(actionMapName).FindAction(moveActionName);
         }
 
-        private void OnEnable() => _moveAction.Enable();
+        private void OnEnable() => moveAction.Enable();
 
-        private void OnDisable() => _moveAction.Disable();
+        private void OnDisable() => moveAction.Disable();
 
-        public Vector2 GetMoveInput()
+        public System.Numerics.Vector2 GetMoveInput()
         {
-            var value = _moveAction.ReadValue<UnityEngine.Vector2>();
-            return new Vector2(value.x, value.y);
+            Vector2 value = moveAction.ReadValue<Vector2>();
+            return new System.Numerics.Vector2(value.x, value.y);
         }
     }
 }
