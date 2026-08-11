@@ -1,101 +1,95 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project overview
 
-This is a Unity project (Editor version 6000.3.20f1 / Unity 6) using the Universal Render Pipeline (URP). It is currently a fresh project scaffold — no gameplay scripts exist yet beyond Unity's default template assets (`Assets/TutorialInfo/`).
+Unity project (Editor 6000.3.20f1 / Unity 6, URP). Fresh scaffold beyond Unity's default template assets (`Assets/TutorialInfo/`).
 
 ## Key dependencies
 
-Declared in `Packages/manifest.json`:
+From `Packages/manifest.json`:
 
-- **UniTask** (`com.cysharp.unitask`) — async/await for Unity, prefer over coroutines for new async code.
-- **VContainer** (`jp.hadashikick.vcontainer`) — dependency injection framework; use for wiring up services/MonoBehaviours rather than singletons or `FindObjectOfType`.
-- **Input System** (`com.unity.inputsystem`) — new Input System is in use; action map defined in `Assets/InputSystem_Actions.inputactions`. Do not use the legacy `Input` class for new input code.
-- **URP** (`com.unity.render-pipelines.universal`) — rendering pipeline; render pipeline assets live in `Assets/Settings/`.
-- **AI Navigation** (`com.unity.ai.navigation`) — NavMesh tooling.
-- **Unity Test Framework** (`com.unity.test-framework`) — for any EditMode/PlayMode tests.
+- **UniTask** (`com.cysharp.unitask`) — prefer over coroutines for async code.
+- **VContainer** (`jp.hadashikick.vcontainer`) — DI; wire services/MonoBehaviours through it, not singletons or `FindObjectOfType`.
+- **Input System** (`com.unity.inputsystem`) — action map in `Assets/InputSystem_Actions.inputactions`. No legacy `Input` class.
+- **URP** (`com.unity.render-pipelines.universal`) — pipeline assets in `Assets/Settings/`.
+- **AI Navigation** (`com.unity.ai.navigation`) — NavMesh.
+- **Unity Test Framework** (`com.unity.test-framework`) — EditMode/PlayMode tests.
 
 ## Architecture: hexagonal (ports and adapters)
 
-This project is structured as a set of hexagons (bounded features/domains), each isolated under its own folder:
+Hexagons (bounded features) live under `Assets/Features/[Hexagon]/`. For each:
 
-```
-Assets/Features/[Hexagon]/
-```
+- **`Domain/`** — plain C# (no `UnityEngine`, no `MonoBehaviour`), the business logic. **Ports** — interfaces the domain depends on — live in `Domain/Ports/{Input,Output}/`: `Ports/Input/` is what the domain reads from the world (e.g. `IMovementInputPort`), `Ports/Output/` is what it acts through (e.g. `IPlayerBodyPort`). Domain and ports never reference Unity APIs or other hexagons' internals.
+- **`Adapters/`** — Unity-specific port implementations (MonoBehaviours, ScriptableObjects, engine calls), mirroring the ports: `Adapters/Input/`, `Adapters/Output/`. DI registration lives at `Adapters/Installer/` as a static `[Hexagon]Installer.Install(IContainerBuilder builder)` — not its own `LifetimeScope` (see "Dependency injection" for why). Presenter-style adapters that don't cleanly belong to input or output live at the `Adapters/` root. Adapters depend on the domain, never the reverse.
+- **Cross-hexagon communication** happens through ports/events, never by reaching into another hexagon's internals directly. Two hexagons talking to each other means defining a port for it.
 
-For each hexagon:
+Ask which hexagon a new feature belongs to (or whether it's a new one) before writing code. Keep domain logic out of MonoBehaviours — they're thin adapters that delegate to `Domain/`.
 
-- **Domain/core** — plain C# (no `UnityEngine`, no `MonoBehaviour`) holding the business logic, in a `Domain/` subfolder. **Ports** — interfaces the domain depends on — live in their own `Domain/Ports/` subfolder, split further into `Ports/Input/` (what the domain reads from the world, e.g. `IMovementInputPort`) and `Ports/Output/` (what the domain acts through, e.g. `IPlayerBodyPort`). The domain (including its ports) must not reference Unity APIs or other hexagons' internals directly.
-- **Adapters** — Unity-specific implementations of the ports (MonoBehaviours, ScriptableObjects, engine calls), living in the same hexagon's `Adapters/` subfolder, split to mirror the ports: `Adapters/Input/` implements `Ports/Input/`, `Adapters/Output/` implements `Ports/Output/`. The hexagon's DI registration code lives at `Adapters/Installer/` as a static `[Hexagon]Installer` class (e.g. `PlayerMovementInstaller.Install(IContainerBuilder builder)`) — **not** its own `LifetimeScope`; see "Composition roots" below for why. Orchestrating/presenter-style adapters that don't cleanly belong to either input or output (e.g. a per-frame presenter driving both) live at the `Adapters/` root. Adapters depend on the domain, never the other way around.
-- **Cross-hexagon communication** happens through ports/interfaces (or events), not by one hexagon reaching directly into another's internals. If two hexagons need to talk, define a port for it rather than adding a direct reference.
+**Testing and asmdefs:**
 
-When adding a new feature, ask which hexagon it belongs to (or whether it's a new one) before writing code, and keep domain logic out of MonoBehaviours — MonoBehaviours should be thin adapters that delegate to the domain/core.
-
-- **Domain/core logic must be covered by tests.** Since it's plain C# with no Unity dependencies, it's cheap to unit test with EditMode tests — no scene, no play mode required. Whenever you add or change logic in a hexagon's `Domain/` folder, add or update the corresponding tests, and run them (via the Unity Test Runner, or `unity-mcp`'s `Unity_RunCommand` when available) before considering the change done.
-- **Give each hexagon exactly two asmdefs: `Domain` and `Adapters`.** `[Hexagon]/Domain/[Hexagon].Domain.asmdef` has `noEngineReferences: true` — that's what makes "no UnityEngine in domain code" a compile error instead of a convention someone forgets. `[Hexagon]/Adapters/[Hexagon].Adapters.asmdef` covers `Adapters/` (including `Installer/`), references the `Domain` asmdef plus whatever engine/package assemblies it needs (e.g. `VContainer`, `Unity.InputSystem`). This project is expected to grow to many (eventually hundreds of) hexagons, so without per-hexagon `Adapters` asmdefs, all adapter code across every hexagon would sit in one monolithic default `Assembly-CSharp` — meaning a change to any one hexagon's adapter forces a recompile of literally all of them, and blocks entering Play Mode while it happens. That's worth avoiding from the start; retrofitting it after hundreds of hexagons exist is much more painful than doing it consistently now.
-- **Don't give tests an asmdef at all — put them in a folder literally named `Editor/`.** Unity auto-excludes anything under an `Editor/` folder from player builds and auto-references `NUnit`/`UnityEngine.TestRunner`/`UnityEditor.TestRunner` for it, so `[Test]` methods just work with zero asmdef. Use one project-wide location (e.g. `Assets/Tests/Editor/[Hexagon]/`) rather than one per hexagon — a monolithic test compile unit only costs you when editing test files (it doesn't block Play Mode or gameplay iteration), so it's fine to leave ungrouped until it's actually measured to be slow. If that day comes, split into a handful of *grouped* test asmdefs (by system, not by individual hexagon) rather than mirroring every hexagon 1:1.
+- Domain logic must be covered by EditMode tests (cheap: plain C#, no scene/play mode needed). Add/update tests whenever `Domain/` changes, and run them (Unity Test Runner, or `unity-mcp`'s `Unity_RunCommand`) before calling a change done.
+- Each hexagon gets exactly two asmdefs: `[Hexagon].Domain.asmdef` (`noEngineReferences: true` — makes "no Unity in domain" a compile error, not a convention) and `[Hexagon].Adapters.asmdef` (covers `Adapters/` incl. `Installer/`, references `Domain` plus whatever engine/package assemblies it needs). The project will grow to many hexagons; without per-hexagon `Adapters` asmdefs, every hexagon's adapter code sits in one monolithic `Assembly-CSharp`, so any adapter change recompiles all of them and blocks Play Mode. Cheaper to do this from the start than retrofit later.
+- Tests get **no asmdef** — put them in a folder literally named `Editor/` (e.g. `Assets/Tests/Editor/[Hexagon]/`). Unity auto-excludes `Editor/` from builds and auto-references `NUnit`/`TestRunner` there, so `[Test]` just works. One project-wide location, not one per hexagon — a shared test compile unit only costs you on test-file edits, not gameplay iteration. Split into a few *grouped* (by system, not per-hexagon) test asmdefs only if that's ever measured to be slow.
 
 ## Dependency injection: VContainer
 
-- Wire up dependencies (ports → adapters) via VContainer `LifetimeScope`s, not `FindObjectOfType`, static singletons, or manual `new`-ing of services.
-- **Hexagons do not get their own `LifetimeScope`.** A `LifetimeScope`'s child container is only visible to itself and its own descendants — never to siblings, and never upward to its parent. If `PlayerMovement` had its own `LifetimeScope` nested under `LevelLifetimeScope`, a sibling hexagon like a future `Enemy` (also attached under `Level`) would have **no way** to resolve anything Player registers — sibling hexagons need to talk to each other constantly (targeting, detection, etc.), so that's a real bug, not a theoretical one. Instead: each hexagon exposes a static `[Hexagon]Installer.Install(IContainerBuilder builder)` method (in `Adapters/Installer/`), and whichever tier scope matches its lifetime (see "Composition roots" below) calls it from its own `Configure()`. This keeps registration code colocated per-hexagon (not centralized in one giant root installer) while landing every hexagon under the same tier in one flat, mutually-visible container.
-- Inject dependencies through constructors (for plain C# classes) or `[Inject]` methods/fields (for MonoBehaviours) rather than reaching for service locators.
-- **"Services" includes stateless `Domain/` classes, not just adapters.** A domain class with no identity that just computes something from its inputs (e.g. `PlayerMoverService`) is a domain service — register it in the `LifetimeScope` (`builder.Register<T>(...)`) and inject it where it's needed. Don't manually `new` it up inside an adapter/presenter; that also tends to leak config (like tunable speeds) onto the wrong object — config belongs on the `Installer`/`LifetimeScope`, which passes it into the registration, not on whichever adapter happened to need the domain service first. Domain services may depend on other domain services via constructor injection (service calling service is normal composition) as long as the dependency stays inside the domain layer.
-- Suffix domain service class names with `Service` (e.g. `PlayerMoverService`, not `PlayerMover`) so the role — stateless behavior, not an entity or value object — is visible at a glance.
+- Wire dependencies (ports → adapters) through VContainer, not `FindObjectOfType`, singletons, or manual `new`-ing.
+- **Hexagons don't get their own `LifetimeScope`.** A scope's container is visible only to itself and its descendants — never siblings, never its parent. A separate `PlayerLifetimeScope` nested under `LevelLifetimeScope` would leave a sibling `Enemy` hexagon unable to resolve anything Player registers, and siblings need to talk to each other constantly (targeting, detection). Instead, each hexagon exposes a static `[Hexagon]Installer.Install(builder)`, and whichever tier scope matches its lifetime calls it from its own `Configure()` — registration stays colocated per-hexagon while landing everyone in one flat, mutually-visible container per tier.
+- Inject through constructors (plain C#) or `[Inject]` methods/fields (MonoBehaviours) — no service locators.
+- **"Services" includes stateless `Domain/` classes, not just adapters.** A domain class with no identity that just computes from its inputs (e.g. `PlayerMoverService`) is a domain service — register it (`builder.Register<T>(...)`), don't `new` it up inside an adapter. Config (tunable values) belongs on the `Installer`, passed into the registration — not hardcoded on whichever adapter needed the service first. Domain services may depend on other domain services via constructor injection, as long as the dependency stays inside the domain layer.
+- Suffix domain service names with `Service` (`PlayerMoverService`, not `PlayerMover`) so the role is visible at a glance.
 
 ## Composition roots: Global / Session / Level scopes
 
-Beyond each hexagon's own `LifetimeScope`, the project uses a three-tier `LifetimeScope` hierarchy for cross-cutting composition, in `Assets/Core/Scopes/` (not a hexagon — no `Domain`/`Adapters` split, no ports, just composition-root wiring):
+Cross-cutting composition, separate from hexagon installers, in `Assets/Core/Scopes/` (not a hexagon — no `Domain`/`Adapters`, just wiring):
 
-- **`GlobalLifetimeScope`** — app-wide, no parent. Holds things that live for the whole app session (e.g. `ClientConfig`).
-- **`SessionLifetimeScope`** — parent is `GlobalLifetimeScope`. Holds things scoped to a play session/run.
-- **`LevelLifetimeScope`** — parent is `SessionLifetimeScope`. Holds things scoped to the current level/scene.
+- **`GlobalLifetimeScope`** — app-wide, no parent. Holds session-spanning things (e.g. `ClientConfig`).
+- **`SessionLifetimeScope`** — parent `GlobalLifetimeScope`. Scoped to a play session/run.
+- **`LevelLifetimeScope`** — parent `SessionLifetimeScope`. Scoped to the current level/scene. Hexagon installers for gameplay elements (e.g. `PlayerMovementInstaller`) get called from here.
 
-`SessionLifetimeScope`/`LevelLifetimeScope` attach to their parent tier by overriding `FindParent()`, not the serialized `parentReference` field (that's for Inspector-driven cases): `protected override LifetimeScope FindParent() => Find<GlobalLifetimeScope>();`. This is VContainer's built-in extension point (see `LifetimeScope.FindParent()`/`LifetimeScope.Find<T>()` in the package source) and it's lazy/order-safe — a child scope forces its parent to `Build()` first if it hasn't already, so GameObject/script Awake order across scopes doesn't matter. This mechanism is only for the three tier scopes themselves, not for hexagons — a hexagon attaches to a tier by having that tier's `Configure()` call its static `Install(builder)` (see "Dependency injection" above), so it lands in the tier's own container rather than a nested child scope.
+Tiers attach to their parent via `FindParent()`, not the serialized `parentReference` field (that's for Inspector-driven cases): `protected override LifetimeScope FindParent() => Find<GlobalLifetimeScope>();`. VContainer's built-in extension point — lazy and order-safe, a child forces its parent to `Build()` first if needed, so Awake order doesn't matter. This is only for the three tier scopes; hexagons attach by having a tier's `Configure()` call their `Install(builder)`, not by nesting a scope.
 
-Not yet built: surviving scene loads (`GlobalLifetimeScope`/`SessionLifetimeScope` persisting via `DontDestroyOnLoad` or VContainer's root-prefab mechanism via `VContainerSettings`). There's only one scene right now, so that problem doesn't exist yet — revisit when multi-scene loading is introduced rather than building it preemptively.
+Not yet built: surviving scene loads (`DontDestroyOnLoad` or VContainer's `VContainerSettings` root-prefab mechanism). Only one scene exists right now — revisit when multi-scene loading arrives, not before.
 
 ## Config: ClientConfig
 
-`Assets/Features/ClientConfig/` holds `ClientConfig`, a `[CreateAssetMenu]` `ScriptableObject` asset acting as the global, designer-tunable config (e.g. `PlayerMoveSpeed`). It's registered as an instance on `GlobalLifetimeScope` (`builder.RegisterInstance(clientConfig)`), so any hexagon can resolve it from its own scope (child scopes see parent registrations). Since it's just data with no behavior yet, it currently has no `Domain`/`Adapters` split and no asmdef of its own — add those only if/when it grows actual logic.
+`Assets/Features/ClientConfig/ClientConfig.cs` — a `[CreateAssetMenu]` `ScriptableObject` holding global, designer-tunable values (e.g. `PlayerMoveSpeed`). Registered as an instance on `GlobalLifetimeScope`, so any hexagon can resolve it (child scopes see parent registrations). Pure data, no behavior yet — no `Domain`/`Adapters` split or asmdef of its own until it grows logic.
 
-A hexagon reading a value from it (e.g. `PlayerMovementInstaller` resolving `ClientConfig.PlayerMoveSpeed` to construct `PlayerMoverService`) does so at the **adapter/installer** layer, passing the plain value into the domain service's constructor — the domain itself never references `ClientConfig` or `ScriptableObject` directly, preserving the "no Unity in `Domain/`" rule.
+A hexagon reads a value from it at the **installer** layer (e.g. `PlayerMovementInstaller` resolving `ClientConfig.PlayerMoveSpeed` to construct `PlayerMoverService`), passing the plain value into the domain service's constructor. Domain never references `ClientConfig`/`ScriptableObject` directly.
 
-Caveat worth watching: a single global config asset can turn into a dumping ground as more hexagons add fields to it. Fine for now (`atm`); if it gets unwieldy, prefer per-hexagon config assets that `ClientConfig` aggregates references to, over one flat file with everything in it.
+Watch for: one global config asset turning into a dumping ground as hexagons pile fields onto it. Fine for now — if it gets unwieldy, switch to per-hexagon config assets that `ClientConfig` aggregates references to.
 
 ## Coding style
 
-- **No underscore-prefixed private fields.** Use the plain name (`moveSpeed`, not `_moveSpeed`); disambiguate from a same-named constructor/method parameter with `this.` (`this.moveSpeed = moveSpeed;`), not a naming prefix.
-- **Adapters default to `UnityEngine` math types (`Vector2`, `Vector3`, `Quaternion`, ...).** Adapters are Unity-flavored code — a bare `Vector2` in an adapter file should mean `UnityEngine.Vector2`. Only where an adapter satisfies a `Domain`-owned port signature (which uses `System.Numerics` to stay Unity-free) should `System.Numerics.Vector2`/`Vector3` appear, and there it should be fully qualified inline (`System.Numerics.Vector2`) rather than aliased via `using Vector2 = System.Numerics.Vector2;` — aliasing the domain type as the bare name inverts which type is "natural" in a file that's otherwise all Unity code.
+- **No underscore-prefixed private fields.** Plain name (`moveSpeed`), disambiguate a same-named parameter with `this.`, not a prefix.
+- **Adapters default to `UnityEngine` math types** (`Vector2`, `Vector3`, `Quaternion`, ...) — a bare `Vector2` in adapter code means `UnityEngine.Vector2`. Only fully-qualify `System.Numerics.Vector2`/`Vector3` inline where satisfying a `Domain`-owned port signature; don't alias it as the bare name via `using Vector2 = System.Numerics.Vector2;` — that inverts which type is "natural" in an otherwise-Unity file.
+- **A type named the same as its innermost namespace segment is ambiguous under `using`** (`CS0118`) at every call site. E.g. class `ClientConfig` in namespace `Features.ClientConfig`: skip the `using`, fully-qualify (`Features.ClientConfig.ClientConfig`) instead.
 
 ## Async: UniTask
 
-- Use UniTask (and UniTask extensions, e.g. for Addressables, Input System, etc.) for all async code — `async UniTask`/`UniTaskVoid` instead of `async void` or coroutines (`IEnumerator`/`StartCoroutine`).
-- Avoid mixing `Task`/`Task<T>` from `System.Threading.Tasks` with Unity code; convert at the boundary if interacting with a `Task`-based API.
-- Cancellation should flow through `CancellationToken`s (e.g. tied to a `MonoBehaviour`'s lifetime via `this.GetCancellationTokenOnDestroy()`), not manual `bool` flags.
+- `async UniTask`/`UniTaskVoid`, not `async void` or coroutines (`IEnumerator`/`StartCoroutine`).
+- Don't mix `Task`/`Task<T>` with Unity code; convert at the boundary.
+- Cancellation flows through `CancellationToken`s (e.g. `this.GetCancellationTokenOnDestroy()`), not manual `bool` flags.
 
 ## Working with this repo
 
-- This is a Unity project: most meaningful changes happen by editing `.cs` scripts under `Assets/`, or scene/prefab/asset files (YAML-based `.unity`, `.asset`, `.prefab`). Scene and asset files are large generated YAML — avoid hand-editing them unless necessary, and prefer scripting changes that Unity will serialize itself.
-- Every asset has a paired `.meta` file (GUID tracking) — when adding or moving asset files, the corresponding `.meta` file must move/be created with it, or Unity will regenerate a new GUID and break references.
-- There is no command-line build/test setup in this repo; building is done through the Unity Editor (Build Settings). If a `unity-mcp` connection to a running Editor is available, use it (`Unity_RunCommand`, `Unity_GetConsoleLogs`) to compile and run tests programmatically instead of asking the user to do it manually.
-- `Library/`, `Temp/`, `obj/`, and the generated `.csproj`/`.sln` files are Unity Editor-generated and should not be hand-edited.
-- After making changes, check that the project compiles (no errors in the Unity Console) and run any existing EditMode/PlayMode tests via the Unity Test Runner. **Do not enter Play Mode to manually verify gameplay/behavior** — compiling cleanly and passing existing tests is the bar for "done"; leave hands-on testing to the user.
-- Commit in small, focused chunks rather than batching unrelated changes into one commit.
-- Prefix commit messages with the name of the thing worked on in square brackets — the hexagon/feature/system, not a generic change type. E.g. `[PlayerMovement] add domain movement logic`, `[CLAUDE.md] document asmdef conventions`, not `[feat] add player movement domain`.
+- Meaningful changes are `.cs` scripts, or scene/prefab/asset YAML (`.unity`, `.asset`, `.prefab`). Avoid hand-editing generated YAML unless necessary — prefer scripting changes Unity serializes itself.
+- Every asset has a paired `.meta` (GUID tracking) — move/create it alongside the asset, or Unity regenerates the GUID and breaks references.
+- No command-line build/test setup; building is through the Editor (Build Settings). If a `unity-mcp` connection is available, use it (`Unity_RunCommand`, `Unity_GetConsoleLogs`) to compile and test programmatically instead of asking the user to do it manually.
+- `Library/`, `Temp/`, `obj/`, generated `.csproj`/`.sln` are Editor-generated — don't hand-edit.
+- Bar for "done": compiles clean (no Console errors), existing EditMode/PlayMode tests pass. **Never enter Play Mode to manually verify gameplay** — leave hands-on testing to the user.
+- **Renaming a `Component`-derived class to a non-`Component` (e.g. a `LifetimeScope` into a `static` installer) while reusing the script's `.meta`/GUID breaks any scene that had it attached** — Unity logs `'X' is missing the class attribute 'ExtensionOfNativeClass'!`. `GameObjectUtility.RemoveMonoBehavioursWithMissingScript` won't catch it (the GUID still resolves to a real type, just not a valid `Component`), and `SerializedObject` can't touch `GameObject.m_Component` directly (`"It is not allowed to modify the data property"`). Simplest fix: recreate the affected GameObject.
+- Commit in small, focused chunks.
+- Prefix commit messages with the thing worked on in square brackets — the hexagon/feature/system, not a change type. `[PlayerMovement] add domain movement logic`, `[CLAUDE.md] document asmdef conventions` — not `[feat] ...`.
 
-## Lessons learned (session notes — read before using Unity MCP tooling)
+## Unity MCP tooling notes
 
-- **Use `unity-mcp` tools (`Unity_RunCommand`, `Unity_GetConsoleLogs`, `Unity_Camera_Capture`, etc.), not `coplay-mcp`.** In this environment the `coplay-mcp` bridge was not reachable ("Unity Editor is not running at the specified project root") even though a Unity Editor was actually open; `unity-mcp`'s `Unity_RunCommand` (compiles and runs arbitrary C# in-editor) is the tool that actually works here.
-- **Never enter Play Mode to test a change** (see rule above). If you already did before this was written: don't — it doesn't prove anything useful in this setup anyway, see next point.
-- **The automated Unity Editor doesn't tick frames while unfocused.** Entering Play Mode via script and checking behavior "over time" across multiple tool calls will show `Time.frameCount` barely moving — that's an editor-focus/throttling artifact, not a code bug. Not worth chasing, and moot now that play-testing is out of scope.
-- **`Unity_RunCommand` script sandbox rejects `System.Reflection`.** Don't import it; use `GameObject.SendMessage` or restructure the check instead.
-- **`Unity_RunCommand` scripts: fully-qualify `UnityEngine.UI.Image`.** A bare `using UnityEngine.UI;` plus a bare `Image` reference collides with an unrelated `Image` namespace injected into the sandboxed script's compilation context (`CS0118`). Write `UnityEngine.UI.Image` explicitly.
-- **`OnScreenStick`/`OnScreenControl` serialized field names differ from their public property names.** When setting them via `SerializedObject` in an editor script, use `m_ControlPath` and `m_MovementRange`, not `controlPath`/`movementRange`.
-- **Running tests via `TestRunnerApi` (`UnityEditor.TestTools.TestRunner.Api`) from `Unity_RunCommand` hits an interactive dialog MCP can't answer** ("User interactions are not supported for MCP tool calls"). Until that's solved, exercise the `[Test]` methods directly (`new TestClass().TestMethod()` in a try/catch, tally pass/fail) as a stand-in for a real Test Runner pass — same assertions, same domain code, no UI dependency.
-- **A type named the same as its innermost namespace segment (e.g. class `ClientConfig` in namespace `Features.ClientConfig`) is ambiguous under `using`** (`CS0118: '...' is a namespace but is used like a type`) at every call site, not just the declaration. Skip the `using` for that namespace and fully-qualify the type (`Features.ClientConfig.ClientConfig`) wherever it's used instead of fighting the collision.
-- **Newly-written files can get rewritten out from under you.** A freshly created `LifetimeScope` script had its namespace/using directives/body stripped down to a bare template in between being written and the next tool call (likely an IDE/analyzer auto-action in this environment). After the first `AssetDatabase.Refresh()` following a new file creation, re-read the file before assuming your original content is what's on disk.
-- **When an asmdef graph's topology changes (new asmdef added, references edited), `Unity_RunCommand` can block for a long time with `COMPILATION_IN_PROGRESS`.** This isn't a real hang: the MCP bridge's readiness check (`EditorReadyHelper.RefreshAndWaitForReady`, in the `com.unity.ai.assistant` package) polls via `EditorApplication.update`, which only ticks when the Editor window gets OS-level attention — while unfocused, ticks are so rare its 120s timeout expires before it ever observes compilation finishing. Fix: ask the user to briefly click into the Unity Editor window to give its update loop a chance to catch up, then retry.
-- **Renaming a `Component`-derived class to a non-`Component` class (e.g. turning a `LifetimeScope` into a `static` installer) while reusing the same script `.meta`/GUID leaves any scene that had it attached with a broken component reference** — Unity logs `'X' is missing the class attribute 'ExtensionOfNativeClass'!` at runtime. `GameObjectUtility.RemoveMonoBehavioursWithMissingScript` does **not** catch this (the GUID still resolves to a real, existing type — it's just not a valid `Component` anymore, which is a different case than a truly deleted script). `SerializedObject` can't fix it either: `GameObject.m_Component` throws `"It is not allowed to modify the data property"` if you try to `DeleteArrayElementAtIndex` on it directly. Simplest fix: recreate the affected GameObject from scratch rather than trying to patch the stale reference in place.
+Gotchas hit using `unity-mcp` in this environment — worth knowing before running `Unity_RunCommand`.
+
+- Use `unity-mcp` (`Unity_RunCommand`, `Unity_GetConsoleLogs`, `Unity_Camera_Capture`), not `coplay-mcp` — the latter's bridge wasn't reachable here even with the Editor open.
+- `Unity_RunCommand`'s sandbox rejects `System.Reflection` — use `GameObject.SendMessage` or restructure instead.
+- Fully-qualify `UnityEngine.UI.Image` in sandbox scripts — a bare `using UnityEngine.UI;` + `Image` collides with an unrelated injected `Image` namespace (`CS0118`).
+- `OnScreenStick`/`OnScreenControl` serialized field names differ from their public properties: `m_ControlPath`, `m_MovementRange`, not `controlPath`/`movementRange`.
+- `TestRunnerApi` from `Unity_RunCommand` hits an interactive dialog MCP can't answer. Exercise `[Test]` methods directly instead (`new TestClass().TestMethod()` in a try/catch, tally pass/fail) — same assertions, no UI dependency.
+- Newly-written files can get rewritten out from under you (namespace/body stripped to a bare template between write and next tool call — likely an IDE/analyzer auto-action). Re-read a new file after the first `AssetDatabase.Refresh()` before assuming your content is what's on disk.
+- When an asmdef graph's topology changes, `Unity_RunCommand` can block for a long time with `COMPILATION_IN_PROGRESS`. Not a real hang: the MCP bridge's readiness check polls `EditorApplication.update`, which only ticks when the Editor window gets OS-level attention — while unfocused, its 120s timeout expires before it observes compilation finishing. Fix: ask the user to click into the Editor window, then retry.
