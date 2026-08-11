@@ -47,7 +47,16 @@ Cross-cutting composition, separate from hexagon installers, in `Assets/Core/Sco
 - **`SessionLifetimeScope`** — parent `GlobalLifetimeScope`. Scoped to a play session/run.
 - **`LevelLifetimeScope`** — parent `SessionLifetimeScope`. Scoped to the current level/scene. Hexagon installers for gameplay elements (e.g. `PlayerMovementInstaller`) get called from here.
 
-Tiers attach to their parent via `FindParent()`, not the serialized `parentReference` field (that's for Inspector-driven cases): `protected override LifetimeScope FindParent() => Find<GlobalLifetimeScope>();`. VContainer's built-in extension point — lazy and order-safe, a child forces its parent to `Build()` first if needed, so Awake order doesn't matter. This is only for the three tier scopes; hexagons attach by having a tier's `Configure()` call their `Install(builder)`, not by nesting a scope.
+Tiers attach to their parent via `FindParent()`, not the serialized `parentReference` field (that's for Inspector-driven cases). `FindParent()` only *locates* the parent object — it does NOT force-build it, and Unity gives no Awake-order guarantee across independent root GameObjects. If the child's `Awake()` runs first, `Parent.Container` is still null and `LifetimeScope.Build()` NREs on `Parent.Container.CreateScope`. Force it yourself:
+  ```csharp
+  protected override LifetimeScope FindParent()
+  {
+      var parent = Find<GlobalLifetimeScope>();
+      if (parent != null && parent.Container == null) parent.Build();
+      return parent;
+  }
+  ```
+  This is only for the three tier scopes; hexagons attach by having a tier's `Configure()` call their `Install(builder)`, not by nesting a scope.
 
 Not yet built: surviving scene loads (`DontDestroyOnLoad` or VContainer's `VContainerSettings` root-prefab mechanism). Only one scene exists right now — revisit when multi-scene loading arrives, not before.
 

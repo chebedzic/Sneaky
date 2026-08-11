@@ -6,7 +6,12 @@ namespace Core.Scopes
 {
     public class LevelLifetimeScope : LifetimeScope
     {
-        protected override LifetimeScope FindParent() => Find<SessionLifetimeScope>();
+        protected override LifetimeScope FindParent()
+        {
+            var parent = Find<SessionLifetimeScope>();
+            if (parent != null && parent.Container == null) parent.Build();
+            return parent;
+        }
 
         protected override void Configure(IContainerBuilder builder)
         {
