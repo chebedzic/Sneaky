@@ -33,6 +33,10 @@ For each hexagon:
 
 When adding a new feature, ask which hexagon it belongs to (or whether it's a new one) before writing code, and keep domain logic out of MonoBehaviours — MonoBehaviours should be thin adapters that delegate to the domain/core.
 
+- **Domain/core logic must be covered by tests.** Since it's plain C# with no Unity dependencies, it's cheap to unit test with EditMode tests — no scene, no play mode required. Whenever you add or change logic in a hexagon's `Domain/` folder, add or update the corresponding tests, and run them (via the Unity Test Runner, or `unity-mcp`'s `Unity_RunCommand` when available) before considering the change done.
+- **Give each hexagon's `Domain/` its own `.asmdef` with `noEngineReferences: true`** — that's what makes "no UnityEngine in domain code" a compile error instead of a convention someone forgets. Don't give `Adapters/`/`Installer/` their own asmdef by default; they can stay in the default assembly unless build times actually demand otherwise.
+- **Don't create a test asmdef per hexagon.** That doubles your asmdef count with every new feature for near-identical boilerplate. Use one shared EditMode test assembly for the whole project (e.g. `Assets/Tests/EditMode/Game.EditModeTests.asmdef`) that references each hexagon's `Domain` asmdef as needed; organize tests into per-hexagon subfolders within it instead.
+
 ## Dependency injection: VContainer
 
 - Wire up dependencies (ports → adapters) via VContainer `LifetimeScope`s, not `FindObjectOfType`, static singletons, or manual `new`-ing of services.
@@ -49,7 +53,18 @@ When adding a new feature, ask which hexagon it belongs to (or whether it's a ne
 
 - This is a Unity project: most meaningful changes happen by editing `.cs` scripts under `Assets/`, or scene/prefab/asset files (YAML-based `.unity`, `.asset`, `.prefab`). Scene and asset files are large generated YAML — avoid hand-editing them unless necessary, and prefer scripting changes that Unity will serialize itself.
 - Every asset has a paired `.meta` file (GUID tracking) — when adding or moving asset files, the corresponding `.meta` file must move/be created with it, or Unity will regenerate a new GUID and break references.
-- There is no command-line build/test setup in this repo; building, running, and testing is done through the Unity Editor (Unity Test Runner for tests, Build Settings for builds).
+- There is no command-line build/test setup in this repo; building is done through the Unity Editor (Build Settings). If a `unity-mcp` connection to a running Editor is available, use it (`Unity_RunCommand`, `Unity_GetConsoleLogs`) to compile and run tests programmatically instead of asking the user to do it manually.
 - `Library/`, `Temp/`, `obj/`, and the generated `.csproj`/`.sln` files are Unity Editor-generated and should not be hand-edited.
-- After making changes, check that the project compiles (no errors in the Unity Console) and run any existing EditMode/PlayMode tests via the Unity Test Runner before considering the change done.
+- After making changes, check that the project compiles (no errors in the Unity Console) and run any existing EditMode/PlayMode tests via the Unity Test Runner. **Do not enter Play Mode to manually verify gameplay/behavior** — compiling cleanly and passing existing tests is the bar for "done"; leave hands-on testing to the user.
 - Commit in small, focused chunks rather than batching unrelated changes into one commit.
+
+## Lessons learned (session notes — read before using Unity MCP tooling)
+
+- **Use `unity-mcp` tools (`Unity_RunCommand`, `Unity_GetConsoleLogs`, `Unity_Camera_Capture`, etc.), not `coplay-mcp`.** In this environment the `coplay-mcp` bridge was not reachable ("Unity Editor is not running at the specified project root") even though a Unity Editor was actually open; `unity-mcp`'s `Unity_RunCommand` (compiles and runs arbitrary C# in-editor) is the tool that actually works here.
+- **Never enter Play Mode to test a change** (see rule above). If you already did before this was written: don't — it doesn't prove anything useful in this setup anyway, see next point.
+- **The automated Unity Editor doesn't tick frames while unfocused.** Entering Play Mode via script and checking behavior "over time" across multiple tool calls will show `Time.frameCount` barely moving — that's an editor-focus/throttling artifact, not a code bug. Not worth chasing, and moot now that play-testing is out of scope.
+- **`Unity_RunCommand` script sandbox rejects `System.Reflection`.** Don't import it; use `GameObject.SendMessage` or restructure the check instead.
+- **`Unity_RunCommand` scripts: fully-qualify `UnityEngine.UI.Image`.** A bare `using UnityEngine.UI;` plus a bare `Image` reference collides with an unrelated `Image` namespace injected into the sandboxed script's compilation context (`CS0118`). Write `UnityEngine.UI.Image` explicitly.
+- **`OnScreenStick`/`OnScreenControl` serialized field names differ from their public property names.** When setting them via `SerializedObject` in an editor script, use `m_ControlPath` and `m_MovementRange`, not `controlPath`/`movementRange`.
+- **Running tests via `TestRunnerApi` (`UnityEditor.TestTools.TestRunner.Api`) from `Unity_RunCommand` hits an interactive dialog MCP can't answer** ("User interactions are not supported for MCP tool calls"). Until that's solved, exercise the `[Test]` methods directly (`new TestClass().TestMethod()` in a try/catch, tally pass/fail) as a stand-in for a real Test Runner pass — same assertions, same domain code, no UI dependency.
+- **Newly-written files can get rewritten out from under you.** A freshly created `LifetimeScope` script had its namespace/using directives/body stripped down to a bare template in between being written and the next tool call (likely an IDE/analyzer auto-action in this environment). After the first `AssetDatabase.Refresh()` following a new file creation, re-read the file before assuming your original content is what's on disk.
