@@ -57,6 +57,7 @@ When adding a new feature, ask which hexagon it belongs to (or whether it's a ne
 - `Library/`, `Temp/`, `obj/`, and the generated `.csproj`/`.sln` files are Unity Editor-generated and should not be hand-edited.
 - After making changes, check that the project compiles (no errors in the Unity Console) and run any existing EditMode/PlayMode tests via the Unity Test Runner. **Do not enter Play Mode to manually verify gameplay/behavior** — compiling cleanly and passing existing tests is the bar for "done"; leave hands-on testing to the user.
 - Commit in small, focused chunks rather than batching unrelated changes into one commit.
+- Prefix commit messages with the change type in square brackets — `[feat]`, `[fix]`, `[docs]`, `[test]`, `[chore]`, `[refactor]` — e.g. `[feat] add player movement domain`, not `feat: add player movement domain`.
 
 ## Lessons learned (session notes — read before using Unity MCP tooling)
 
