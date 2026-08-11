@@ -42,6 +42,7 @@ When adding a new feature, ask which hexagon it belongs to (or whether it's a ne
 - Wire up dependencies (ports → adapters) via VContainer `LifetimeScope`s, not `FindObjectOfType`, static singletons, or manual `new`-ing of services.
 - Each hexagon should register its own ports/adapters in its own scope (or a scoped installer), keeping registration colocated with the hexagon rather than centralized in one giant root installer.
 - Inject dependencies through constructors (for plain C# classes) or `[Inject]` methods/fields (for MonoBehaviours) rather than reaching for service locators.
+- **"Services" includes stateless `Domain/` classes, not just adapters.** A domain class with no identity that just computes something from its inputs (e.g. `PlayerMover`) is a domain service — register it in the `LifetimeScope` (`builder.Register<T>(...)`) and inject it where it's needed. Don't manually `new` it up inside an adapter/presenter; that also tends to leak config (like tunable speeds) onto the wrong object — config belongs on the `Installer`/`LifetimeScope`, which passes it into the registration, not on whichever adapter happened to need the domain service first.
 
 ## Async: UniTask
 
