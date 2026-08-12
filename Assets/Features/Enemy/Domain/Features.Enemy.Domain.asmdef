@@ -1,13 +1,7 @@
 {
-    "name": "Core.Scopes",
+    "name": "Features.Enemy.Domain",
     "rootNamespace": "",
-    "references": [
-        "VContainer",
-        "Features.ClientConfig",
-        "Features.PlayerMovement.Adapters",
-        "Features.CameraControl.Adapters",
-        "Features.Enemy.Adapters"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -16,5 +10,5 @@
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
-    "noEngineReferences": false
+    "noEngineReferences": true
 }

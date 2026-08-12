@@ -1,4 +1,5 @@
 using Features.CameraControl.Adapters;
+using Features.Enemy.Adapters;
 using Features.PlayerMovement.Adapters;
 using VContainer;
 using VContainer.Unity;
@@ -18,6 +19,7 @@ namespace Core.Scopes
         {
             PlayerMovementInstaller.Install(builder);
             CameraControlInstaller.Install(builder);
+            EnemyInstaller.Install(builder);
         }
     }
 }
