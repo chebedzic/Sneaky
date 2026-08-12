@@ -1,11 +1,11 @@
 {
-    "name": "Core.Scopes",
+    "name": "Features.CameraControl.Adapters",
     "rootNamespace": "",
     "references": [
+        "Features.CameraControl.Domain",
         "VContainer",
-        "Features.ClientConfig",
-        "Features.PlayerMovement.Adapters",
-        "Features.CameraControl.Adapters"
+        "Unity.InputSystem",
+        "Unity.Cinemachine"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
